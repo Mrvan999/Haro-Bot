@@ -6,10 +6,10 @@ import googletrans
 from googletrans import Translator
 import re
 
-ID_SERVIDOR_TESTE =
+ID_SERVIDOR_TESTE = 1107444557873942581
 MAX_HISTORICO = 20  
-MAX_CARACTERES = 1500  
-
+MAX_CARACTERES = 5000  
+MAX_MENSAGEM_CARACTERES = 2000 
 
 traduzidas_cache = set()
 
@@ -23,6 +23,8 @@ class Tradutor(commands.Cog):
         """Processa mensagens normais e de webhook (Tupperbox)"""
         tupper_name = None
         content = message.content
+        
+
         if message.webhook_id:
             match = self.tupperbox_pattern.match(content)
             if match:
@@ -63,41 +65,60 @@ class Tradutor(commands.Cog):
         quantidade: int = 5
     ):
         await interaction.response.defer(ephemeral=True, thinking=True)
+        
         if quantidade < 1 or quantidade > 10:
             await interaction.followup.send(
                 "❌ Quantidade inválida! Use um valor entre 1 e 10.",
                 ephemeral=True
             )
             return
+        
         src, dest = direcao.value.split('-')
+        
         messages_to_translate = []
         total_chars = 0
         
         async for message in interaction.channel.history(limit=MAX_HISTORICO):
             if message.id in traduzidas_cache or message.author == self.bot.user:
                 continue
+                
             msg_data = self.processar_mensagem(message)
+            
             if not msg_data["content"] and not message.embeds:
                 continue
-            if len(msg_data["content"]) > 300:
-                continue
+                
+            if len(msg_data["content"]) > MAX_MENSAGEM_CARACTERES:
+                msg_data["content"] = f"(Mensagem muito longa - {len(msg_data['content'])} caracteres)\n" + \
+                                      msg_data["content"][:500] + "..."
+                
             if total_chars + len(msg_data["content"]) > MAX_CARACTERES:
+                messages_to_translate.append({
+                    "author": "Sistema",
+                    "content": f"⚠️ Limite de {MAX_CARACTERES} caracteres atingido. Algumas mensagens não foram traduzidas.",
+                    "id": 0,
+                    "timestamp": "",
+                    "is_tupper": False
+                })
                 break
+                
             messages_to_translate.append(msg_data)
             total_chars += len(msg_data["content"])
-            if len(messages_to_translate) >= quantidade:
+            
+            if len(messages_to_translate) >= quantidade + 1:
                 break
         
-        if not messages_to_translate:
+        if not messages_to_translate or (len(messages_to_translate) == 1 and messages_to_translate[0]["id"] == 0):
             await interaction.followup.send(
                 "❌ Nenhuma mensagem recente para traduzir.",
                 ephemeral=True
             )
             return
+        
         texto_original = "\n\n".join(
             f"[{msg['timestamp']}] {msg['author']}: {msg['content']}" 
             for msg in reversed(messages_to_translate)
         )
+        
         try:
             if src == "auto":
                 traducao = self.translator.translate(texto_original, dest=dest)
@@ -111,7 +132,12 @@ class Tradutor(commands.Cog):
                 ephemeral=True
             )
             return
-        traduzidas_cache.update(msg["id"] for msg in messages_to_translate)
+        
+        for msg in messages_to_translate:
+            if msg["id"] != 0: 
+                traduzidas_cache.add(msg["id"])
+        
+        # Formatar resultado
         embed = discord.Embed(
             title=f"🌍 Tradução ({direcao.name})",
             description=texto_traduzido,
@@ -119,9 +145,12 @@ class Tradutor(commands.Cog):
         )
         
         idioma_original = traducao.src.upper() if src == "auto" else src.upper()
+        
+        mensagens_reais = sum(1 for msg in messages_to_translate if msg["id"] != 0)
+        
         embed.add_field(
             name="ℹ️ Detalhes",
-            value=f"• Mensagens: {len(messages_to_translate)}\n"
+            value=f"• Mensagens: {mensagens_reais}\n"
                   f"• Idioma original: {idioma_original}\n"
                   f"• Idioma destino: {dest.upper()}",
             inline=False
