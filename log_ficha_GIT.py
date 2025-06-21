@@ -6,7 +6,7 @@ from discord import app_commands, Interaction, Object
 import sqlite3
 from datetime import datetime, timedelta
 
-ID_SERVIDOR_TESTE = 1038628552150614046 # Certifique-se que este é o ID correto do seu servidor de teste
+ID_SERVIDOR_TESTE =
 
 DB_PATH = "data/bot.db"
 
@@ -57,9 +57,8 @@ class LogFicha(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="log_ficha", description="Recupera fichas pendentes de aprovação.")
-    @app_commands.guilds(Object(id=ID_SERVIDOR_TESTE)) # ✅ ADICIONADO DECORADOR
+    @app_commands.guilds(Object(id=ID_SERVIDOR_TESTE))
     async def log_ficha(self, interaction: Interaction):
-        # ... (lógica do comando parece boa) ...
         fichas = buscar_fichas_expiradas(interaction.guild.id)
 
         if not fichas:
@@ -83,14 +82,14 @@ class LogFicha(commands.Cog):
 
             ficha_id = fichas[idx][0]
             ficha_completa = get_ficha_completa(ficha_id)
-            if ficha_completa: # Adicionar verificação se ficha_completa não é None
+            if ficha_completa:
                 embed = gerar_embed_ficha(ficha_completa)
-                await interaction.followup.send(embed=embed, ephemeral=True) # Adicionado ephemeral
+                await interaction.followup.send(embed=embed, ephemeral=True)
             else:
                 await interaction.followup.send(f"❌ Ficha com ID {ficha_id} não encontrada.", ephemeral=True)
-        except asyncio.TimeoutError: # Capturar TimeoutError especificamente
+        except asyncio.TimeoutError:
             await interaction.followup.send("⏱️ Tempo esgotado para escolher a ficha.", ephemeral=True)
-        except ValueError: # Capturar ValueError para entrada inválida
+        except ValueError:
              await interaction.followup.send("❌ Número da ficha inválido.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"❌ Erro ao recuperar ficha: {e}", ephemeral=True)
